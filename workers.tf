@@ -255,6 +255,7 @@ resource "aws_launch_configuration" "workers" {
 
   lifecycle {
     create_before_destroy = true
+    ignore_changes = [name_prefix]
   }
 }
 
@@ -281,6 +282,10 @@ resource "aws_security_group" "workers" {
       "kubernetes.io/cluster/${aws_eks_cluster.this[0].name}" = "owned"
     },
   )
+
+  lifecycle {
+    ignore_changes = [name_prefix]
+  }
 }
 
 resource "aws_security_group_rule" "workers_egress_internet" {
@@ -363,6 +368,10 @@ resource "aws_iam_instance_profile" "workers" {
   )
 
   path = var.iam_path
+
+  lifecycle {
+    ignore_changes = [name_prefix]
+  }
 }
 
 resource "aws_iam_role_policy_attachment" "workers_AmazonEKSWorkerNodePolicy" {
