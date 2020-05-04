@@ -397,3 +397,59 @@ resource "aws_iam_role_policy_attachment" "workers_additional_policies" {
   role       = aws_iam_role.workers[0].name
   policy_arn = var.workers_additional_policies[count.index]
 }
+
+resource "aws_iam_role_policy_attachment" "workers_autoscaling" {
+  count      = var.manage_worker_iam_resources ? 1 : 0
+  policy_arn = aws_iam_policy.worker_autoscaling[0].arn
+  role       = aws_iam_role.workers[0].name
+}
+
+resource "aws_iam_policy" "worker_autoscaling" {
+  count       = var.manage_worker_iam_resources ? 1 : 0
+  name_prefix = "eks-worker-autoscaling-${aws_eks_cluster.this.name}"
+  description = "EKS worker node autoscaling policy for cluster ${aws_eks_cluster.this.name}"
+  policy      = data.aws_iam_policy_document.worker_autoscaling.json
+  path        = var.iam_path
+}
+
+data "aws_iam_policy_document" "worker_autoscaling" {
+  statement {
+    sid    = "eksWorkerAutoscalingAll"
+    effect = "Allow"
+
+    actions = [
+      "autoscaling:DescribeAutoScalingGroups",
+      "autoscaling:DescribeAutoScalingInstances",
+      "autoscaling:DescribeLaunchConfigurations",
+      "autoscaling:DescribeTags",
+      "ec2:DescribeLaunchTemplateVersions",
+    ]
+
+    resources = ["*"]
+  }
+
+  statement {
+    sid    = "eksWorkerAutoscalingOwn"
+    effect = "Allow"
+
+    actions = [
+      "autoscaling:SetDesiredCapacity",
+      "autoscaling:TerminateInstanceInAutoScalingGroup",
+      "autoscaling:UpdateAutoScalingGroup",
+    ]
+
+    resources = ["*"]
+
+    condition {
+      test     = "StringEquals"
+      variable = "autoscaling:ResourceTag/kubernetes.io/cluster/${aws_eks_cluster.this.name}"
+      values   = ["owned"]
+    }
+
+    condition {
+      test     = "StringEquals"
+      variable = "autoscaling:ResourceTag/k8s.io/cluster-autoscaler/enabled"
+      values   = ["true"]
+    }
+  }
+}
