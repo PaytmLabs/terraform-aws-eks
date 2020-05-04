@@ -410,6 +410,10 @@ resource "aws_iam_policy" "worker_autoscaling" {
   description = "EKS worker node autoscaling policy for cluster ${aws_eks_cluster.this[0].name}"
   policy      = data.aws_iam_policy_document.worker_autoscaling.json
   path        = var.iam_path
+
+  lifecycle {
+    ignore_changes = [name_prefix]
+  }
 }
 
 data "aws_iam_policy_document" "worker_autoscaling" {
