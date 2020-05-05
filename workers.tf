@@ -130,7 +130,7 @@ resource "aws_autoscaling_group" "workers" {
 
   lifecycle {
     create_before_destroy = true
-    ignore_changes        = [desired_capacity]
+    ignore_changes        = [desired_capacity, target_group_arns, name_prefix]
   }
 }
 
@@ -255,6 +255,7 @@ resource "aws_launch_configuration" "workers" {
 
   lifecycle {
     create_before_destroy = true
+    ignore_changes = [name_prefix]
   }
 }
 
@@ -281,6 +282,10 @@ resource "aws_security_group" "workers" {
       "kubernetes.io/cluster/${aws_eks_cluster.this[0].name}" = "owned"
     },
   )
+
+  lifecycle {
+    ignore_changes = [name_prefix]
+  }
 }
 
 resource "aws_security_group_rule" "workers_egress_internet" {
@@ -347,6 +352,10 @@ resource "aws_iam_role" "workers" {
   path                  = var.iam_path
   force_detach_policies = true
   tags                  = var.tags
+
+  lifecycle {
+    ignore_changes = [name_prefix]
+  }
 }
 
 resource "aws_iam_instance_profile" "workers" {
@@ -359,6 +368,10 @@ resource "aws_iam_instance_profile" "workers" {
   )
 
   path = var.iam_path
+
+  lifecycle {
+    ignore_changes = [name_prefix]
+  }
 }
 
 resource "aws_iam_role_policy_attachment" "workers_AmazonEKSWorkerNodePolicy" {
@@ -383,4 +396,64 @@ resource "aws_iam_role_policy_attachment" "workers_additional_policies" {
   count      = var.manage_worker_iam_resources && var.create_eks ? length(var.workers_additional_policies) : 0
   role       = aws_iam_role.workers[0].name
   policy_arn = var.workers_additional_policies[count.index]
+}
+
+resource "aws_iam_role_policy_attachment" "workers_autoscaling" {
+  count      = var.manage_worker_iam_resources ? 1 : 0
+  policy_arn = aws_iam_policy.worker_autoscaling[0].arn
+  role       = aws_iam_role.workers[0].name
+}
+
+resource "aws_iam_policy" "worker_autoscaling" {
+  count       = var.manage_worker_iam_resources ? 1 : 0
+  name_prefix = "eks-worker-autoscaling-${aws_eks_cluster.this[0].name}"
+  description = "EKS worker node autoscaling policy for cluster ${aws_eks_cluster.this[0].name}"
+  policy      = data.aws_iam_policy_document.worker_autoscaling.json
+  path        = var.iam_path
+
+  lifecycle {
+    ignore_changes = [name_prefix]
+  }
+}
+
+data "aws_iam_policy_document" "worker_autoscaling" {
+  statement {
+    sid    = "eksWorkerAutoscalingAll"
+    effect = "Allow"
+
+    actions = [
+      "autoscaling:DescribeAutoScalingGroups",
+      "autoscaling:DescribeAutoScalingInstances",
+      "autoscaling:DescribeLaunchConfigurations",
+      "autoscaling:DescribeTags",
+      "ec2:DescribeLaunchTemplateVersions",
+    ]
+
+    resources = ["*"]
+  }
+
+  statement {
+    sid    = "eksWorkerAutoscalingOwn"
+    effect = "Allow"
+
+    actions = [
+      "autoscaling:SetDesiredCapacity",
+      "autoscaling:TerminateInstanceInAutoScalingGroup",
+      "autoscaling:UpdateAutoScalingGroup",
+    ]
+
+    resources = ["*"]
+
+    condition {
+      test     = "StringEquals"
+      variable = "autoscaling:ResourceTag/kubernetes.io/cluster/${aws_eks_cluster.this[0].name}"
+      values   = ["owned"]
+    }
+
+    condition {
+      test     = "StringEquals"
+      variable = "autoscaling:ResourceTag/k8s.io/cluster-autoscaler/enabled"
+      values   = ["true"]
+    }
+  }
 }

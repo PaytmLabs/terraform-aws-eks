@@ -205,7 +205,7 @@ resource "aws_autoscaling_group" "workers_launch_template" {
 
   lifecycle {
     create_before_destroy = true
-    ignore_changes        = [desired_capacity]
+    ignore_changes        = [desired_capacity, name_prefix]
   }
 }
 
@@ -422,6 +422,7 @@ resource "aws_launch_template" "workers_launch_template" {
 
   lifecycle {
     create_before_destroy = true
+    ignore_changes = [name_prefix]
   }
 }
 
@@ -453,4 +454,8 @@ resource "aws_iam_instance_profile" "workers_launch_template" {
     local.default_iam_role_id,
   )
   path = var.iam_path
+
+  lifecycle {
+    ignore_changes = [name_prefix]
+  }
 }

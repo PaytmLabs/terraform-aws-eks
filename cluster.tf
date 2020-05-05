@@ -38,6 +38,10 @@ resource "aws_eks_cluster" "this" {
     }
   }
 
+  lifecycle {
+    ignore_changes = [vpc_config]
+  }
+
   depends_on = [
     aws_iam_role_policy_attachment.cluster_AmazonEKSClusterPolicy,
     aws_iam_role_policy_attachment.cluster_AmazonEKSServicePolicy,
@@ -85,6 +89,10 @@ resource "aws_security_group" "cluster" {
       "Name" = "${var.cluster_name}-eks_cluster_sg"
     },
   )
+
+  lifecycle {
+    ignore_changes = [name_prefix]
+  }
 }
 
 resource "aws_security_group_rule" "cluster_egress_internet" {
@@ -117,6 +125,10 @@ resource "aws_iam_role" "cluster" {
   path                  = var.iam_path
   force_detach_policies = true
   tags                  = var.tags
+
+  lifecycle {
+    ignore_changes = [name_prefix]
+  }
 }
 
 resource "aws_iam_role_policy_attachment" "cluster_AmazonEKSClusterPolicy" {
